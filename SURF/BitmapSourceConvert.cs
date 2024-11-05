@@ -11,9 +11,9 @@ namespace SURF
         [System.Runtime.InteropServices.DllImport("gdi32.dll")]
         public static extern bool DeleteObject(IntPtr hObject);
 
-        public static BitmapSource ToBitmapSource(Mat image)
+        public static BitmapSource ToBitmapSource(Mat mat)
         {
-            using (var source = image.ToBitmap())
+            using (var source = mat.ToBitmap())
             {
                 IntPtr ptr = source.GetHbitmap();
                 BitmapSource bs = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(

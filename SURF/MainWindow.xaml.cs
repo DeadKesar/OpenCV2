@@ -6,29 +6,39 @@ using Emgu.CV.Util;
 using Microsoft.Win32;
 using System;
 using System.Windows;
-using System.Windows.Threading;
+using System.Windows.Media.Imaging;
 
 namespace SURF
 {
     public partial class MainWindow : Window
     {
-        private Image<Bgr, Byte> imgSceneColor;
-        private Image<Bgr, Byte> imgToFindColor;
         private VideoCapture _capture;
+        private Mat _currentFrame;
+        private Image<Bgr, Byte> imgToFindColor;
 
         public MainWindow()
         {
             InitializeComponent();
+            _currentFrame = new Mat();
         }
 
-        private void ButtonStartCamera_Click(object sender, RoutedEventArgs e)
+        private void ButtonLoadScene_Click(object sender, RoutedEventArgs e)
         {
             if (_capture == null)
             {
-                _capture = new VideoCapture(0);
+                _capture = new VideoCapture();
                 _capture.ImageGrabbed += ProcessFrame;
+                _capture.Start();
             }
-            _capture.Start();
+        }
+
+        private void ProcessFrame(object sender, EventArgs e)
+        {
+            _capture.Retrieve(_currentFrame);
+            Dispatcher.Invoke(() =>
+            {
+                ImageScene.Source = BitmapSourceConvert.ToBitmapSource(_currentFrame);
+            });
         }
 
         private void ButtonLoadTemplate_Click(object sender, RoutedEventArgs e)
@@ -37,29 +47,21 @@ namespace SURF
             if (openFileDialog.ShowDialog() == true)
             {
                 imgToFindColor = new Image<Bgr, Byte>(openFileDialog.FileName);
+                ImageResult.Source = BitmapSourceConvert.ToBitmapSource(imgToFindColor);
             }
         }
 
-        private void ProcessFrame(object sender, EventArgs e)
+        private void ButtonProcess_Click(object sender, RoutedEventArgs e)
         {
-            Mat frame = new Mat();
-            _capture.Retrieve(frame);
-
-            if (frame.IsEmpty)
-                return;
-
-            imgSceneColor = frame.ToImage<Bgr, Byte>();
-
-            ProcessImage();
-        }
-
-        private void ProcessImage()
-        {
-            if (imgSceneColor == null || imgToFindColor == null)
+            if (_currentFrame == null || imgToFindColor == null)
             {
+                MessageBox.Show("Please load the template image and start the camera.");
                 return;
             }
 
+            Image<Bgr, Byte> imgSceneColor = _currentFrame.ToImage<Bgr, Byte>();
+
+            // Создание ORB-детектора с указанными параметрами
             var orbDetector = new ORB(
                 numberOfFeatures: 500,
                 scaleFactor: 1.2f,
@@ -74,6 +76,7 @@ namespace SURF
             Image<Gray, Byte> imgSceneGray = imgSceneColor.Convert<Gray, Byte>();
             Image<Gray, Byte> imgToFindGray = imgToFindColor.Convert<Gray, Byte>();
 
+            // Выделение ключевых точек и создание дескрипторов
             VectorOfKeyPoint vkpSceneKeyPoints = new VectorOfKeyPoint();
             VectorOfKeyPoint vkpToFindKeyPoints = new VectorOfKeyPoint();
             Mat mtxSceneDescriptors = new Mat();
@@ -82,10 +85,12 @@ namespace SURF
             orbDetector.DetectAndCompute(imgSceneGray, null, vkpSceneKeyPoints, mtxSceneDescriptors, false);
             orbDetector.DetectAndCompute(imgToFindGray, null, vkpToFindKeyPoints, mtxToFindDescriptors, false);
 
+            // Сопоставление с помощью BFMatcher
             BFMatcher matcher = new BFMatcher(DistanceType.Hamming);
             VectorOfVectorOfDMatch matches = new VectorOfVectorOfDMatch();
-            matcher.KnnMatch(mtxToFindDescriptors, mtxSceneDescriptors, matches, 2);
+            matcher.KnnMatch(mtxSceneDescriptors, mtxToFindDescriptors, matches, 2);
 
+            // Фильтрация совпадений по уникальности
             float uniquenessThreshold = 0.8f;
             VectorOfDMatch goodMatches = new VectorOfDMatch();
             for (int i = 0; i < matches.Size; i++)
@@ -97,9 +102,11 @@ namespace SURF
                 }
             }
 
+            // Отрисовка результата
             Mat resultImg = new Mat();
             if (goodMatches.Size >= 4)
             {
+                // Используем пустую маску, чтобы отобразить только хорошие совпадения
                 Features2DToolbox.DrawMatches(
                     imgToFindColor,
                     vkpToFindKeyPoints,
@@ -107,34 +114,27 @@ namespace SURF
                     vkpSceneKeyPoints,
                     goodMatches,
                     resultImg,
-                    new MCvScalar(0, 255, 0),
-                    new MCvScalar(255, 0, 0),
-                    null,
+                    new MCvScalar(0, 255, 0), // Цвет совпадающих линий
+                    new MCvScalar(255, 0, 0), // Цвет одиночных точек
+                    null, // Используем null вместо matchesMask
                     Features2DToolbox.KeypointDrawType.Default);
 
-                Dispatcher.Invoke(() =>
-                {
-                    ImageResult.Source = BitmapSourceConvert.ToBitmapSource(resultImg);
-                });
+                ImageResult.Source = BitmapSourceConvert.ToBitmapSource(resultImg);
             }
             else
             {
-                Dispatcher.Invoke(() =>
-                {
-                    ImageResult.Source = BitmapSourceConvert.ToBitmapSource(imgSceneColor);
-                });
+                MessageBox.Show("Not enough matches found!");
             }
         }
 
-        protected override void OnClosed(EventArgs e)
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
-            base.OnClosed(e);
-
             if (_capture != null)
             {
                 _capture.ImageGrabbed -= ProcessFrame;
                 _capture.Dispose();
             }
+            base.OnClosing(e);
         }
     }
 }

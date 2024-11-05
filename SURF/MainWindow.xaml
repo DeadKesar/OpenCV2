@@ -13,10 +13,12 @@
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.ColumnSpan="2" HorizontalAlignment="Center" Margin="10">
-            <Button x:Name="ButtonStartCamera" Content="Start Camera" Click="ButtonStartCamera_Click" Margin="5"/>
+            <Button x:Name="ButtonLoadScene" Content="Load Scene" Click="ButtonLoadScene_Click" Margin="5"/>
             <Button x:Name="ButtonLoadTemplate" Content="Load Template" Click="ButtonLoadTemplate_Click" Margin="5"/>
+            <Button x:Name="ButtonProcess" Content="Process" Click="ButtonProcess_Click" Margin="5"/>
         </StackPanel>
 
-        <Image x:Name="ImageResult" Grid.Row="1" Grid.ColumnSpan="2" Margin="10" Stretch="Uniform"/>
+        <Image x:Name="ImageScene" Grid.Row="1" Grid.Column="0" Margin="10" Stretch="Uniform"/>
+        <Image x:Name="ImageResult" Grid.Row="1" Grid.Column="1" Margin="10" Stretch="Uniform"/>
     </Grid>
 </Window>
